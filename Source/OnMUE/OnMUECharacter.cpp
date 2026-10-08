@@ -10,6 +10,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "DrawDebugHelpers.h"
 #include "OnMUE.h"
+#include "OnMUEPlayerController.h"
+#include "GameFramework/PlayerState.h"
 
 
 namespace
@@ -106,6 +108,8 @@ void AOnMUECharacter::BeginPlay()
 }
 
 
+
+
 void AOnMUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {	
 	// Set up action bindings
@@ -121,10 +125,36 @@ void AOnMUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 		// Looking/Aiming
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AOnMUECharacter::LookInput);
 		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AOnMUECharacter::LookInput);
+
+		//Destroy
+		EnhancedInputComponent->BindAction(DestroyInput, ETriggerEvent::Triggered, this , &AOnMUECharacter::DoDestroy);
 	}
 	else
 	{
 		UE_LOG(LogOnMUE, Error, TEXT("'%s' Failed to find an Enhanced Input Component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
+	}
+}
+
+void AOnMUECharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	APlayerState* PS = GetPlayerState();
+	if (PS && IsLocallyControlled())
+	{
+		CurrentPS = PS;
+		UE_LOG(LogTemp, Display, TEXT("Player: %d, Score : %f"), CurrentPS->GetPlayerId(), CurrentPS->GetScore());
+	}
+}
+
+void AOnMUECharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	CurrentPS = GetPlayerState();
+	if (CurrentPS && IsLocallyControlled())
+	{
+		UE_LOG(LogTemp, Display, TEXT("Player: %d, Score : %f"), CurrentPS->GetPlayerId(), CurrentPS->GetScore());
 	}
 }
 
@@ -179,4 +209,15 @@ void AOnMUECharacter::DoJumpEnd()
 {
 	// pass StopJumping to the character
 	StopJumping();
+}
+
+ void AOnMUECharacter::DoDestroy()
+{
+	CurrentPS->SetScore(CurrentPS->GetScore() + 1);
+	UE_LOG(LogTemp, Display, TEXT("Player: %d, Score : %f"), CurrentPS->GetPlayerId(), CurrentPS->GetScore());
+	
+	if (!IsLocallyControlled()) return;
+	AOnMUEPlayerController* PlayerController = Cast<AOnMUEPlayerController>(GetController());
+
+	PlayerController->Server_SolicitarRespawn();
 }

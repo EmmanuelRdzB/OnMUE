@@ -48,9 +48,14 @@ protected:
 	/** Mouse Look Input Action */
 	UPROPERTY(EditAnywhere, Category ="Input")
 	class UInputAction* MouseLookAction;
+
+	UPROPERTY(EditAnywhere, Category="Input")
+	class UInputAction* DestroyInput;
 	
 public:
 	AOnMUECharacter();
+
+	APlayerState* CurrentPS;
 
 protected:
 
@@ -79,6 +84,10 @@ protected:
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
 
+	//** Destroy the actor and adds a point to the score
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoDestroy();
+
 protected:
 
 	/** Set up input action bindings */
@@ -92,6 +101,10 @@ public:
 
 	/** Returns first person camera component **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+
+	virtual void OnRep_PlayerState();
+
+	virtual void PossessedBy(AController* NewController) override;
 
 };
 

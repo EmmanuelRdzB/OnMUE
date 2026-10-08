@@ -8,12 +8,29 @@
 #include "OnMUECameraManager.h"
 #include "Blueprint/UserWidget.h"
 #include "OnMUE.h"
+#include "GameFramework/GameModeBase.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 
 AOnMUEPlayerController::AOnMUEPlayerController()
 {
 	// set the player camera manager class
 	PlayerCameraManagerClass = AOnMUECameraManager::StaticClass();
+}
+
+void AOnMUEPlayerController::Server_SolicitarRespawn_Implementation()
+{
+	APawn* MyPawn = GetPawn();
+	if (MyPawn)
+	{
+		MyPawn->Destroy();
+	}
+
+	AGameModeBase* GM = GetWorld()->GetAuthGameMode();
+
+	if (GM)
+	{
+		GM->RestartPlayer(this);
+	}
 }
 
 void AOnMUEPlayerController::BeginPlay()

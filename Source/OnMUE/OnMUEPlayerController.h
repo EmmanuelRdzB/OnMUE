@@ -24,6 +24,9 @@ public:
 	/** Constructor */
 	AOnMUEPlayerController();
 
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+	void Server_SolicitarRespawn();
+
 protected:
 
 	/** Input Mapping Contexts */
