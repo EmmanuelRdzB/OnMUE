@@ -7,10 +7,16 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "EnhancedInputComponent.h"
 #include "InputActionValue.h"
+
+#include "AbilitySystemComponent.h"
+#include "Online/AOnMUEPlayerState.h"
+#include "GameplayTagsManager.h"
+
 #include "GameFramework/CharacterMovementComponent.h"
 #include "DrawDebugHelpers.h"
 #include "OnMUE.h"
 #include "OnMUEPlayerController.h"
+#include "Actors/OnMUEWC.h"
 #include "GameFramework/PlayerState.h"
 
 
@@ -75,6 +81,23 @@ AOnMUECharacter::AOnMUECharacter()
 	// Configure character movement
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
 	GetCharacterMovement()->AirControl = 0.5f;
+
+
+	// Configure the WeaponComponent
+	WeaponComponent =  CreateDefaultSubobject<UOnMUEWC>(TEXT("WeaponComponent"));
+
+	// Get the saved tag in DeafultGameplaytag.ini
+	SprintingTag = UGameplayTagsManager::Get().RequestGameplayTag(FName("State.Movement.Sprinting"));
+}
+
+FVector AOnMUECharacter::GetAimOrigin() const
+{
+	return GetPawnViewLocation(); //Returns the pawn location
+}
+
+FVector AOnMUECharacter::GetAimDirection() const
+{
+	return GetViewRotation().Vector(); //Returns the pawn ratation
 }
 
 void AOnMUECharacter::BeginPlay()
@@ -126,8 +149,13 @@ void AOnMUECharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AOnMUECharacter::LookInput);
 		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AOnMUECharacter::LookInput);
 
-		//Destroy
-		EnhancedInputComponent->BindAction(DestroyInput, ETriggerEvent::Triggered, this , &AOnMUECharacter::DoDestroy);
+		//Fire
+		EnhancedInputComponent->BindAction(FireInput, ETriggerEvent::Triggered, this , &AOnMUECharacter::DoFire);
+
+		//Sprint
+		EnhancedInputComponent->BindAction(SprintInputAction, ETriggerEvent::Triggered, this, &AOnMUECharacter::StartSprinting);
+		EnhancedInputComponent->BindAction(SprintInputAction, ETriggerEvent::Completed, this, &AOnMUECharacter::StopSprinting);
+
 	}
 	else
 	{
@@ -139,23 +167,38 @@ void AOnMUECharacter::OnRep_PlayerState()
 {
 	Super::OnRep_PlayerState();
 
-	APlayerState* PS = GetPlayerState();
-	if (PS && IsLocallyControlled())
-	{
-		CurrentPS = PS;
-		UE_LOG(LogTemp, Display, TEXT("Player: %d, Score : %f"), CurrentPS->GetPlayerId(), CurrentPS->GetScore());
-	}
+	InitAbilityActorInfo();
+	
 }
 
 void AOnMUECharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 
-	CurrentPS = GetPlayerState();
-	if (CurrentPS && IsLocallyControlled())
+	InitAbilityActorInfo();
+
+}
+
+void AOnMUECharacter::InitAbilityActorInfo()
+{
+
+	AAOnMUEPlayerState* OnlinePS = GetPlayerState<AAOnMUEPlayerState>();
+
+	if (OnlinePS)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Player: %d, Score : %f"), CurrentPS->GetPlayerId(), CurrentPS->GetScore());
+		// ASC
+
+		UAbilitySystemComponent* ASC = OnlinePS->GetAbilitySystemComponent();
+		if (ASC)
+		{
+			// Get Owner and Avatar
+			ASC->InitAbilityActorInfo(OnlinePS, this);
+
+			//AbilitySystemComponent =  ASC;
+		}
 	}
+
+	
 }
 
 
@@ -211,13 +254,49 @@ void AOnMUECharacter::DoJumpEnd()
 	StopJumping();
 }
 
- void AOnMUECharacter::DoDestroy()
+ void AOnMUECharacter::DoFire()
 {
-	CurrentPS->SetScore(CurrentPS->GetScore() + 1);
-	UE_LOG(LogTemp, Display, TEXT("Player: %d, Score : %f"), CurrentPS->GetPlayerId(), CurrentPS->GetScore());
-	
-	if (!IsLocallyControlled()) return;
-	AOnMUEPlayerController* PlayerController = Cast<AOnMUEPlayerController>(GetController());
+	if (WeaponComponent)
+	{
+		WeaponComponent->TryStartFire();
+	}
+}
 
-	PlayerController->Server_SolicitarRespawn();
+void AOnMUECharacter::StartSprinting()
+{
+	if (AAOnMUEPlayerState* OnlinePS = GetPlayerState<AAOnMUEPlayerState>())
+	{
+		if (UAbilitySystemComponent* ASC = OnlinePS->GetAbilitySystemComponent())
+		{
+			if (!HasStateTag(SprintingTag))
+			{
+				ASC->AddLooseGameplayTag(SprintingTag);
+			}
+		}
+	}
+}
+
+void AOnMUECharacter::StopSprinting()
+{
+	if (AAOnMUEPlayerState* OnlinePS = GetPlayerState<AAOnMUEPlayerState>())
+	{
+		UAbilitySystemComponent* ASC = OnlinePS->GetAbilitySystemComponent();
+		if (ASC)
+		{
+			ASC->RemoveLooseGameplayTag(SprintingTag);
+		}
+	}
+}
+
+bool AOnMUECharacter::HasStateTag(FGameplayTag TagToCheck) const
+{
+	if (AAOnMUEPlayerState* OnlinePS = GetPlayerState<AAOnMUEPlayerState>())
+	{
+			if (UAbilitySystemComponent* ASC = OnlinePS->GetAbilitySystemComponent())
+			{
+				return ASC->HasMatchingGameplayTag(TagToCheck);
+			}
+			return false;
+	}
+	return false;
 }

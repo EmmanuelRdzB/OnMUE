@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "Data/IAimSource.h"
+#include "GameplayTagContainer.h"
 #include "OnMUECharacter.generated.h"
 
 class UInputComponent;
@@ -19,7 +21,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
  *  A basic first person character
  */
 UCLASS(abstract)
-class AOnMUECharacter : public ACharacter
+class AOnMUECharacter : public ACharacter, public IAimSource
 {
 	GENERATED_BODY()
 
@@ -50,12 +52,21 @@ protected:
 	class UInputAction* MouseLookAction;
 
 	UPROPERTY(EditAnywhere, Category="Input")
-	class UInputAction* DestroyInput;
+	class UInputAction* FireInput;
+
+	UPROPERTY(EditAnywhere, Category="Input")
+	class UInputAction* SprintInputAction;
+
 	
 public:
 	AOnMUECharacter();
 
-	APlayerState* CurrentPS;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Combat")
+	class UOnMUEWC* WeaponComponent;
+
+	virtual FVector GetAimOrigin() const override;
+
+	virtual FVector GetAimDirection() const override;
 
 protected:
 
@@ -86,7 +97,16 @@ protected:
 
 	//** Destroy the actor and adds a point to the score
 	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoDestroy();
+	virtual void DoFire();
+
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void StartSprinting();
+
+	UFUNCTION(BlueprintCallable, Category="Input")
+	void StopSprinting();
+
+	UFUNCTION(BlueprintCallable, Category="Input")
+	bool HasStateTag(FGameplayTag TagToCheck) const;
 
 protected:
 
@@ -102,9 +122,17 @@ public:
 	/** Returns first person camera component **/
 	UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+	APlayerState* CurrentPS;
+
 	virtual void OnRep_PlayerState();
 
 	virtual void PossessedBy(AController* NewController) override;
+
+	void InitAbilityActorInfo();
+	
+private:
+	//Tag Cache
+	FGameplayTag SprintingTag;
 
 };
 
